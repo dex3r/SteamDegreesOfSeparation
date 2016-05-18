@@ -30,7 +30,7 @@ namespace SteamDegreesOfSeparation
 
 		public SteamFriendsList GetFriends(ulong targetUserSteamID)
 		{
-			throw new NotImplementedException();
+
 		}
 
 		public static bool IsKeyValid(SteamWebAPIKey key)

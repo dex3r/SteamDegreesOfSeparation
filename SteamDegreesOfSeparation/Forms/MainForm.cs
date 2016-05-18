@@ -16,8 +16,5 @@ namespace SteamDegreesOfSeparation
 		{
 			InitializeComponent();
 		}
-
-
-		private string CSharpSixTest() => "abc";
 	}
 }
