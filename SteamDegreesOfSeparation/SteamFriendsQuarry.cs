@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,8 +10,37 @@ namespace SteamDegreesOfSeparation
 {
 	public class SteamFriendsQuarry
 	{
+		public SteamAPIHandler SteamAPI { get; private set; }
 		public QuarryStatus CurrentStatus { get; private set; } = QuarryStatus.Stopped;
 		public int TargetThreadsAmount { get; private set; } = 4;
+		public ConcurrentQueue<ulong> UsersToCheck { get; private set; } = new ConcurrentQueue<ulong>();
+		public ConcurrentBag<UserData> OutputUsersData { get; private set; } = new ConcurrentBag<UserData>();
+
+		private int _ProcessedUsers;
+		public int ProcessedUsers
+		{
+			get
+			{
+				return _ProcessedUsers;
+			}
+		}
+
+		private int _PrivateProfilesFound;
+		public int PrivateProfilesFound
+		{
+			get
+			{
+				return _PrivateProfilesFound;
+			}
+		}
+
+		public int SeenUsersCount
+		{
+			get
+			{
+				return seenUsers.Count;
+			}
+		}
 
 		public event EventHandler ThreadsStarted = delegate { };
 
@@ -18,6 +48,20 @@ namespace SteamDegreesOfSeparation
 		private ManualResetEvent threadsPause = new ManualResetEvent(true);
 		private CancellationToken cancelToken;
 		private CancellationTokenSource cancelSource;
+		private ConcurrentDictionary<ulong, byte> seenUsers = new ConcurrentDictionary<ulong, byte>();
+		private ulong seedID;
+
+		public SteamFriendsQuarry(SteamAPIHandler steamAPI, ulong seedID)
+		{
+			this.SteamAPI = steamAPI;
+			this.seedID = seedID;
+			SetTargetThreadsAmount(4);
+		}
+
+		public void SetSeedSteamID(ulong seedID)
+		{
+			this.seedID = seedID;
+		}
 
 		public void SetTargetThreadsAmount(int newAmount)
 		{
@@ -64,12 +108,61 @@ namespace SteamDegreesOfSeparation
 					return;
 				}
 
-				Thread.Sleep(1);
-				//TODO
+				ulong steamID;
+
+				while (!UsersToCheck.TryDequeue(out steamID))
+				{
+					threadsPause.WaitOne();
+					if (cancelToken.IsCancellationRequested)
+					{
+						return;
+					}
+
+					Thread.Sleep(1);
+				}
+
+				threadsPause.WaitOne();
+				if (cancelToken.IsCancellationRequested)
+				{
+					return;
+				}
+
+				SteamFriendsList friendsList = SteamAPI.GetFriends(steamID);
+
+				threadsPause.WaitOne();
+				if (cancelToken.IsCancellationRequested)
+				{
+					return;
+				}
+
+				if (friendsList == null)
+				{
+					// Steam friends data could not be queried for that user for some reason. Continue the thread.
+					Interlocked.Increment(ref _PrivateProfilesFound);
+					continue;
+				}
+
+				UserData userData = new UserData
+				{
+					SteamID = steamID,
+					Friends = new HashSet<ulong>(friendsList.friendslist.friends.Select(x => ulong.Parse(x.steamid))),
+				};
+
+				OutputUsersData.Add(userData);
+
+				foreach (var friend in userData.Friends)
+				{
+					if (seenUsers.TryAdd(friend, 0))
+					{
+						UsersToCheck.Enqueue(friend);
+					}
+				}
+
+				Interlocked.Increment(ref _ProcessedUsers);
 			}
 		}
 
-		public async Task Start()
+		public void Start()
 		{
 			if (CurrentStatus == QuarryStatus.Stopped)
 			{
@@ -79,16 +172,21 @@ namespace SteamDegreesOfSeparation
 				cancelToken = cancelSource.Token;
 
 				// This process can possibly run a long time, so it will be run on a background thread.
-				await Task.Run(() =>
-				{
-					CreateThreads();
+				//await Task.Run(() =>
+				//{
+				CreateThreads();
 
-					for (int i = 0; i < threads.Count; i++)
-					{
-						Thread th = threads[i];
-						th.Start();
-					}
-				});
+				if (UsersToCheck.Count == 0)
+				{
+					UsersToCheck.Enqueue(seedID);
+				}
+
+				for (int i = 0; i < threads.Count; i++)
+				{
+					Thread th = threads[i];
+					th.Start();
+				}
+				//});
 
 				CurrentStatus = QuarryStatus.Started;
 

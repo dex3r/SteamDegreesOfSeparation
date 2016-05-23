@@ -45,6 +45,21 @@ namespace SteamDegreesOfSeparation
 			return webAPIKeys.Add(key);
 		}
 
+		public void SetKeys(IEnumerable<SteamWebAPIKey> keys)
+		{
+			webAPIKeys.Clear();
+
+			foreach (var key in keys)
+			{
+				webAPIKeys.Add(key);
+			}
+		}
+
+		/// <summary>
+		/// This method is thread safe.
+		/// </summary>
+		/// <param name="targetUserSteamID"></param>
+		/// <returns></returns>
 		public SteamFriendsList GetFriends(ulong targetUserSteamID)
 		{
 			SteamWebAPIKey key = GetRandomKey();
