@@ -93,7 +93,7 @@ namespace SteamDegreesOfSeparation
 			Thread thread = new Thread(ThreadMethod);
 			thread.IsBackground = true;
 			thread.Name = "SteamFriendsQuarry bg worker #" + id;
-			thread.Priority = ThreadPriority.BelowNormal;
+			thread.Priority = ThreadPriority.Lowest;
 
 			return thread;
 		}
