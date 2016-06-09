@@ -69,6 +69,7 @@
     <Compile Include="SteamFriendsQuarry.cs" />
     <Compile Include="SteamWebAPIKey.cs" />
     <Compile Include="UserData.cs" />
+    <Compile Include="UsersDataManager.cs" />
     <EmbeddedResource Include="Forms\MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>
